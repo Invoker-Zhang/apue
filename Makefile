@@ -1,6 +1,6 @@
 # apue Makefile.
 # 2018.4.7
-# Author: Invoker Zhang
+# Author: Invoker 
 
 MKDIR = mkdir -p
 RM = rm -rf
@@ -17,36 +17,42 @@ lib_dir = lib
 object_dir = bin
 header_dir = inc
 
-VPATH = $(source_dirs)
+objects = $(foreach parm, $(source_dirs) $(lib_dir),\
+		  		$(patsubst $(parm)/%.c, $(object_dir)/%.o, $(wildcard $(parm)/*.c)))
+lib_objects = $(patsubst $(lib_dir)/%.c, $(object_dir)/%.o, $(wildcard $(lib_dir)/*.c))
 
-headers := $(wildcard $(header_dir)/*.h)
-lib_sources := $(wildcard $(lib_dir)/*.c)
-lib_objects := $(patsubst $(lib_dir)/%.c, $(object_dir)/%.o, $(lib_sources))
-indivd_sources := $(shell find $(source_dirs) -name "*.c")
-indivd_objects := $(addprefix $(object_dir)/, $(subst .c,.o, $(notdir $(indivd_sources))))
-indivd_progs := $(addprefix $(object_dir)/, $(subst .c,, $(notdir $(indivd_sources))))
-indivd_phonys := $(subst .c,, $(notdir $(indivd_sources)))
+programs = $(foreach parm, $(source_dirs),\
+		   		$(patsubst $(parm)/%.c, $(object_dir)/%, $(wildcard $(parm)/*.c)))
 
-all: $(indivd_phonys)
-	@echo $(headers)
-	@echo $(lib_sources)
+all:  $(programs)
+	@echo $(objects)
 	@echo $(lib_objects)
-	@echo $(indivd_sources)
-	@echo $(indivd_objects)
-	@echo -------------
-	@echo $(indivd_phonys)
-	@echo $(indivd_progs)
+	@echo $(programs)
 
-$(lib_objects): $(object_dir)/%.o : $(lib_dir)/%.c
-	@$(MKDIR) $(object_dir)
-	$(COMPILE.c) $< $(OUTPUT_OPTION)
+$(objects) : | $(object_dir)
 
-$(indivd_objects): $(object_dir)/%.o : %.c
-	@$(MKDIR) $(object_dir)
-	$(COMPILE.c) $< $(OUTPUT_OPTION)
+$(object_dir):
+	$(MKDIR) $@
 
-$(indivd_phonys) : % : $(object_dir)/%
-	@echo $<
+# $(call build-rules, srcdir, objdir)
+define compile-rules =
+$(subst .c,.o, $(subst $1,$2, $(wildcard $1/*.c))): $2/%.o : $1/%.c
+	$$(COMPILE.c) $$< $$(OUTPUT_OPTION)
+endef
 
-$(indivd_progs) : $(object_dir)/% : $(object_dir)/%.o  $(lib_objects)
-	$(CC) $^ -o $@ 
+
+$(foreach parm, $(source_dirs), $(eval $(call compile-rules, $(parm), $(object_dir))))
+
+$(eval $(call compile-rules, $(lib_dir),$(object_dir)))
+
+define link-rules =
+$(subst $1, $2, $(subst .c,, $(wildcard $1/*.c))): $2/% : $2/%.o $(lib_objects)
+	$$(CC) $$^ -o $$@
+endef
+
+$(foreach parm, $(source_dirs), $(eval $(call link-rules, $(parm), $(object_dir))))
+
+.PHONY: clean
+
+clean:
+	$(RM) $(object_dir)
